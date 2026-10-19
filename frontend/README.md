@@ -1,16 +1,24 @@
-# React + Vite
+# AURALIS Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Frontend React + Vite cho hệ thống khám phá POI và nghe thuyết minh đa ngôn ngữ.
 
-Currently, two official plugins are available:
+## Chạy dự án
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Yêu cầu: Node.js LTS.
 
-## React Compiler
+```bash
+npm install
+npm run dev
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Build kiểm tra
 
-## Expanding the Oxlint configuration
+```bash
+npm run build
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Kết nối Backend
+
+Sao chép `.env.example` thành `.env.local`, sau đó đặt `VITE_API_BASE_URL` theo địa chỉ ASP.NET Core API đang chạy, ví dụ `http://localhost:5000/api`. Khởi động lại Vite sau khi sửa biến môi trường.
+
+Hiện giao diện khám phá sử dụng dữ liệu mẫu trong `src/data.js`; việc hiển thị danh sách chưa tự động gọi API. `src/services/api.js` là lớp tiện ích sẵn sàng cho bước tích hợp Backend tiếp theo. Bản đồ hiện tại là bản minh họa, chưa phải bản đồ dịch vụ thực.

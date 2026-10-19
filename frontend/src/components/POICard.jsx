@@ -1,28 +1,22 @@
-function POICard({ poi, selected, onClick }) {
+import { memo } from 'react'
+import { CATS } from '../data'
+import Icon from './Icon'
+import { fmtDist } from '../hooks'
+
+function POICard({ poi, name, catLabel, dist, selected, saved, onSelect, onToggleSave, saveLabel }) {
   return (
-    <button className={`poi-card ${selected ? 'selected' : ''}`} onClick={onClick}>
-      <div className={`poi-thumb ${poi.color}`}>
-        <span>⌂</span>
-      </div>
-
-      <div className="poi-content">
-        <div className="poi-title-row">
-          <strong>{poi.name}</strong>
-          {selected && <span className="selected-dot">●</span>}
-        </div>
-
-        <div className="poi-category">{poi.category}</div>
-
-        <div className="poi-meta">
-          <span>★ {poi.rating}</span>
-          <span>•</span>
-          <span>{poi.distance}</span>
-        </div>
-      </div>
-
-      <span className="poi-arrow">›</span>
-    </button>
+    <div className={`poi-card ${selected ? 'selected' : ''}`}>
+      <button className="poi-main" onClick={() => onSelect(poi.id)} aria-pressed={selected}>
+        <span className="poi-dist" style={{ background: CATS[poi.cat].color }}>{fmtDist(dist)}</span>
+        <span className="poi-text">
+          <strong>{name}</strong>
+          <span>{catLabel} · ★ {poi.rating}</span>
+        </span>
+      </button>
+      <button className={`icon-btn ${saved ? 'on' : ''}`} onClick={() => onToggleSave(poi.id)} aria-label={saveLabel} aria-pressed={saved}>
+        <Icon name="star" filled={saved} />
+      </button>
+    </div>
   )
 }
-
-export default POICard
+export default memo(POICard)

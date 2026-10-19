@@ -1,264 +1,175 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import MapMock from './components/MapMock'
 import POICard from './components/POICard'
 import AudioPlayer from './components/AudioPlayer'
+import Icon from './components/Icon'
+import { CATS, LANGS, POIS, UI } from './data'
+import { fmtDist, haversine, norm, useGeo, useLocalStorage, useSpeech, useToast, walkMin } from './hooks'
 
-const initialPois = [
-  {
-    id: 1,
-    name: 'Dinh Độc Lập',
-    category: 'Di tích',
-    distance: '0.8 km',
-    duration: '5 phút',
-    description: 'Công trình lịch sử nổi bật tại trung tâm TP. Hồ Chí Minh.',
-    rating: 4.8,
-    color: 'red',
-  },
-  {
-    id: 2,
-    name: 'Nhà thờ Đức Bà',
-    category: 'Kiến trúc',
-    distance: '1.2 km',
-    duration: '8 phút',
-    description: 'Một trong những công trình kiến trúc tiêu biểu của thành phố.',
-    rating: 4.7,
-    color: 'blue',
-  },
-  {
-    id: 3,
-    name: 'Bưu điện Trung tâm',
-    category: 'Kiến trúc',
-    distance: '1.4 km',
-    duration: '10 phút',
-    description: 'Công trình mang phong cách kiến trúc châu Âu giữa lòng thành phố.',
-    rating: 4.6,
-    color: 'orange',
-  },
-  {
-    id: 4,
-    name: 'Chợ Bến Thành',
-    category: 'Mua sắm',
-    distance: '1.8 km',
-    duration: '12 phút',
-    description: 'Điểm tham quan và mua sắm nổi tiếng của TP. Hồ Chí Minh.',
-    rating: 4.5,
-    color: 'green',
-  },
-]
-
-function App() {
-  const [language, setLanguage] = useState('Tiếng Việt')
-  const [selectedPoi, setSelectedPoi] = useState(initialPois[0])
+export default function App() {
+  const [langCode, setLangCode] = useLocalStorage('auralis:lang', 'vi')
+  const [saved, setSaved] = useLocalStorage('auralis:saved', [])
+  const [selectedId, setSelectedId] = useState(1)
   const [search, setSearch] = useState('')
-  const [showLanguage, setShowLanguage] = useState(false)
-  const [routeMode, setRouteMode] = useState(false)
-  const [toast, setToast] = useState('')
+  const [filter, setFilter] = useState('all') // all | saved | <cat>
+  const [sortBy, setSortBy] = useState('distance')
+  const [menu, setMenu] = useState(false)
+  const [routing, setRouting] = useState(false)
+  const [toast, notify] = useToast()
+  const { pos, status, locate } = useGeo()
+  const mapApi = useRef({})
+  const searchRef = useRef(null)
+  const langWrap = useRef(null)
 
-  const languages = ['Tiếng Việt', 'English', '中文', '한국어']
+  const lang = LANGS.find((l) => l.code === langCode) || LANGS[0]
+  const t = UI[lang.code] || UI.en
+  const catName = (c) => CATS[c][lang.code] || CATS[c].en
+  const pick = (p) => p.tr[lang.code] ? { text: p.tr[lang.code], locale: lang.locale } : { text: p.tr.en, locale: 'en-US' }
 
-  const filteredPois = useMemo(() => {
-    const keyword = search.trim().toLowerCase()
-    if (!keyword) return initialPois
-    return initialPois.filter((poi) =>
-      `${poi.name} ${poi.category}`.toLowerCase().includes(keyword),
-    )
+  const list = useMemo(() => {
+    const q = norm(search.trim())
+    return POIS.map((p) => ({ ...p, dist: haversine(pos, p) }))
+      .filter((p) => (filter === 'all' ? true : filter === 'saved' ? saved.includes(p.id) : p.cat === filter))
+      .filter((p) => !q || norm(`${p.name} ${CATS[p.cat].vi} ${CATS[p.cat].en}`).includes(q))
+      .sort((a, b) => sortBy === 'rating' ? b.rating - a.rating : sortBy === 'name' ? a.name.localeCompare(b.name, 'vi') : a.dist - b.dist)
+  }, [search, filter, sortBy, saved, pos])
+
+  const selected = useMemo(() => {
+    const p = POIS.find((x) => x.id === selectedId)
+    return p && { ...p, dist: haversine(pos, p) }
+  }, [selectedId, pos])
+
+  const narration = selected ? pick(selected) : { text: '', locale: lang.locale }
+  const speech = useSpeech(narration.text, narration.locale)
+
+  // Phím tắt: "/" để tìm kiếm, Esc để đóng thẻ / xoá tìm kiếm; bấm ra ngoài đóng menu ngôn ngữ
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT') { e.preventDefault(); searchRef.current?.focus() }
+      if (e.key === 'Escape') { setMenu(false); if (search) setSearch(''); else setSelectedId(null) }
+    }
+    const onClick = (e) => { if (langWrap.current && !langWrap.current.contains(e.target)) setMenu(false) }
+    window.addEventListener('keydown', onKey); window.addEventListener('click', onClick)
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('click', onClick) }
   }, [search])
 
-  const notify = (message) => {
-    setToast(message)
-    window.setTimeout(() => setToast(''), 2200)
-  }
+  useEffect(() => {
+    const msg = { loading: t.locating, ok: t.located, denied: t.denied, far: t.far }[status]
+    if (msg) notify(msg)
+    if (status === 'ok') mapApi.current.centerOn?.(pos)
+  }, [status]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleSave = (id) => setSaved((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
+  const listen = () => { if (!speech.supported) notify(t.noTts); else { speech.toggle(); if (!selected.tr[lang.code]) notify(t.fallback) } }
+  const filters = [['all', t.all], ['saved', `${t.saved}${saved.length ? ` (${saved.length})` : ''}`], ...Object.keys(CATS).map((c) => [c, catName(c)])]
+  const isSaved = selected && saved.includes(selected.id)
 
   return (
-    <div className="app-shell">
+    <div className="app">
       <header className="topbar">
-        <div className="brand" onClick={() => setSelectedPoi(initialPois[0])}>
-          <div className="brand-mark">V</div>
-          <div>
-            <div className="brand-name">VoiceMap</div>
-            <div className="brand-subtitle">Khám phá bằng giọng nói</div>
-          </div>
-        </div>
-
-        <div className="topbar-actions">
-          <button className="ghost-btn" onClick={() => notify('Đã bật định vị GPS')}>
-            <span>⌖</span> Vị trí của tôi
-          </button>
-
-          <div className="language-wrap">
-            <button
-              className="language-btn"
-              onClick={() => setShowLanguage((value) => !value)}
-            >
-              <span>◎</span> {language} <span className="chevron">⌄</span>
+        <button className="brand" onClick={() => { setSelectedId(null); setSearch(''); setFilter('all') }}>
+          <span className="logo" aria-hidden="true"><i /><i /><i /><i /><i /></span>
+          <span><b>AURALIS</b><small>{t.tagline}</small></span>
+        </button>
+        <div className="top-actions">
+          <button className="btn" onClick={locate}><Icon name="locate" size={16} /><span className="hide-sm">{t.locate}</span></button>
+          <div className="lang" ref={langWrap}>
+            <button className="btn" onClick={() => setMenu((v) => !v)} aria-haspopup="listbox" aria-expanded={menu}>
+              <Icon name="globe" size={16} />{lang.label}<Icon name="chevron" size={14} />
             </button>
-
-            {showLanguage && (
-              <div className="language-menu">
-                {languages.map((item) => (
-                  <button
-                    key={item}
-                    className={item === language ? 'active-language' : ''}
-                    onClick={() => {
-                      setLanguage(item)
-                      setShowLanguage(false)
-                      notify(`Đã chuyển sang ${item}`)
-                    }}
-                  >
-                    {item}
-                    {item === language && <span>✓</span>}
-                  </button>
+            {menu && (
+              <ul className="menu" role="listbox">
+                {LANGS.map((l) => (
+                  <li key={l.code}><button role="option" aria-selected={l.code === langCode} className={l.code === langCode ? 'on' : ''}
+                    onClick={() => { setLangCode(l.code); setMenu(false) }}>{l.label}</button></li>
                 ))}
-              </div>
+              </ul>
             )}
           </div>
-
-          <button className="avatar" onClick={() => notify('Khu vực tài khoản')}>
-            U
-          </button>
         </div>
       </header>
 
-      <main className="main-layout">
-        <aside className="sidebar">
-          <div className="sidebar-heading">
-            <div>
-              <span className="eyebrow">EXPLORE</span>
-              <h1>Khám phá địa điểm</h1>
-            </div>
-            <button className="filter-btn" onClick={() => notify('Bộ lọc đang được mở')}>
-              ☷
-            </button>
-          </div>
-
-          <div className="search-box">
-            <span>⌕</span>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Tìm địa điểm..."
-            />
-            {search && (
-              <button onClick={() => setSearch('')} aria-label="Xóa tìm kiếm">
-                ×
+      <main className="layout">
+        <aside className="side">
+          <h1>{t.explore}</h1>
+          <label className="search">
+            <Icon name="search" size={17} />
+            <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t.search} />
+            {search && <button type="button" onClick={() => setSearch('')} aria-label={t.close}><Icon name="x" size={15} /></button>}
+          </label>
+          <div className="chips" role="group">
+            {filters.map(([k, label]) => (
+              <button key={k} className={`chip ${filter === k ? 'on' : ''}`} onClick={() => setFilter(k)} aria-pressed={filter === k}>
+                {CATS[k] && <i style={{ background: CATS[k].color }} />}{label}
               </button>
-            )}
-          </div>
-
-          <div className="quick-filters">
-            <button className="chip active">Gần tôi</button>
-            <button className="chip">Di tích</button>
-            <button className="chip">Ẩm thực</button>
-            <button className="chip">Kiến trúc</button>
-          </div>
-
-          <div className="poi-header">
-            <span>{filteredPois.length} địa điểm gần đây</span>
-            <button onClick={() => notify('Đang sắp xếp theo khoảng cách')}>Khoảng cách ▾</button>
-          </div>
-
-          <div className="poi-list">
-            {filteredPois.map((poi) => (
-              <POICard
-                key={poi.id}
-                poi={poi}
-                selected={selectedPoi.id === poi.id}
-                onClick={() => setSelectedPoi(poi)}
-              />
             ))}
-
-            {filteredPois.length === 0 && (
-              <div className="empty-state">
-                <div className="empty-icon">⌕</div>
-                <strong>Không tìm thấy địa điểm</strong>
-                <span>Thử một từ khóa khác.</span>
-              </div>
+          </div>
+          <div className="list-head">
+            <span>{t.count(list.length)}</span>
+            <label>{t.sort}
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="distance">{t.distance}</option><option value="rating">{t.rating}</option><option value="name">{t.name}</option>
+              </select>
+            </label>
+          </div>
+          <div className="list">
+            {list.map((p) => (
+              <POICard key={p.id} poi={p} name={p.name} catLabel={catName(p.cat)} dist={p.dist} selected={p.id === selectedId}
+                saved={saved.includes(p.id)} onSelect={setSelectedId} onToggleSave={toggleSave} saveLabel={saved.includes(p.id) ? t.unsave : t.save} />
+            ))}
+            {list.length === 0 && (
+              <div className="empty"><strong>{filter === 'saved' && !search ? t.noSaved : t.empty}</strong>
+                {!(filter === 'saved' && !search) && <span>{t.emptyHint}</span>}</div>
             )}
           </div>
         </aside>
 
-        <section className="map-area">
-          <MapMock
-            selectedPoi={selectedPoi}
-            routeMode={routeMode}
-            onSelect={setSelectedPoi}
-          />
+        <section className="stage">
+          <MapMock pois={POIS} selectedId={selectedId} user={pos} speaking={speech.playing} zoomRef={mapApi}
+            routeTo={routing && selected ? selected : null} onSelect={setSelectedId}
+            labels={{ map: 'Map', name: (p) => p.name }} />
 
-          <div className="map-search">
-            <span>⌕</span>
-            <input placeholder="Tìm kiếm trên bản đồ" />
+          <div className="zoom">
+            <button onClick={locate} aria-label={t.locate}><Icon name="locate" /></button>
+            <button onClick={() => mapApi.current.zoom?.(1.3)} aria-label={t.zoomIn}><Icon name="plus" /></button>
+            <button onClick={() => mapApi.current.zoom?.(1 / 1.3)} aria-label={t.zoomOut}><Icon name="minus" /></button>
           </div>
 
-          <div className="map-controls">
-            <button onClick={() => notify('Đang lấy vị trí hiện tại')} title="Vị trí của tôi">⌖</button>
-            <button onClick={() => notify('Đã phóng to bản đồ')} title="Phóng to">＋</button>
-            <button onClick={() => notify('Đã thu nhỏ bản đồ')} title="Thu nhỏ">−</button>
-          </div>
-
-          <div className="map-info-card">
-            <div className="map-info-top">
-              <div className={`mini-marker ${selectedPoi.color}`}>●</div>
-              <div>
-                <span className="small-label">{selectedPoi.category}</span>
-                <h2>{selectedPoi.name}</h2>
-              </div>
-              <button
-                className="close-card"
-                onClick={() => notify('Đã đóng thông tin')}
-              >
-                ×
-              </button>
+          {routing && selected && (
+            <div className="route-bar">
+              <span>{t.routing} <b>{selected.name}</b> · {fmtDist(selected.dist)}</span>
+              <button onClick={() => setRouting(false)}>{t.endRoute}</button>
             </div>
+          )}
 
-            <p>{selectedPoi.description}</p>
-
-            <div className="info-meta">
-              <span>★ {selectedPoi.rating}</span>
-              <span>⌖ {selectedPoi.distance}</span>
-              <span>◷ {selectedPoi.duration}</span>
-            </div>
-
-            <div className="card-actions">
-              <button
-                className="route-btn"
-                onClick={() => {
-                  setRouteMode(true)
-                  notify(`Đang tạo tuyến đến ${selectedPoi.name}`)
-                }}
-              >
-                Chỉ đường
-              </button>
-              <button className="listen-btn" onClick={() => notify('Đang phát thuyết minh')}>
-                ▶ Nghe thuyết minh
-              </button>
-            </div>
-          </div>
-
-          <AudioPlayer poi={selectedPoi} language={language} />
-
-          {routeMode && (
-            <div className="route-banner">
-              <div>
-                <span className="eyebrow">ROUTE</span>
-                <strong>Đang dẫn đường đến {selectedPoi.name}</strong>
-              </div>
-              <button
-                onClick={() => {
-                  setRouteMode(false)
-                  notify('Đã kết thúc tuyến đường')
-                }}
-              >
-                Kết thúc
-              </button>
+          {selected && (
+            <div className="dock">
+              <article className="info" style={{ '--c': CATS[selected.cat].color }}>
+                <header>
+                  <span className="tag">{catName(selected.cat)}</span>
+                  <button className={`icon-btn ${isSaved ? 'on' : ''}`} onClick={() => toggleSave(selected.id)} aria-label={isSaved ? t.unsave : t.save} aria-pressed={isSaved}><Icon name="star" filled={isSaved} /></button>
+                  <button className="icon-btn" onClick={() => setSelectedId(null)} aria-label={t.close}><Icon name="x" /></button>
+                </header>
+                <h2>{selected.name}</h2>
+                <p>{narration.text}</p>
+                <div className="meta">
+                  <span>★ {selected.rating}</span>
+                  <span>{fmtDist(selected.dist)}</span>
+                  <span><Icon name="walk" size={14} /> {walkMin(selected.dist)} {t.min} {t.walk}</span>
+                </div>
+                <div className="actions">
+                  <button className="primary" onClick={() => { setRouting(true); notify(`${t.routing} ${selected.name}`) }}><Icon name="route" size={16} />{t.route}</button>
+                  <button className="soft" onClick={listen}><Icon name={speech.playing ? 'pause' : 'play'} size={16} />{speech.playing ? t.pause : speech.progress > 0 ? t.resume : t.listen}</button>
+                </div>
+              </article>
+              <AudioPlayer name={selected.name} langLabel={narration.locale === lang.locale ? lang.label : 'English'} speech={speech} text={narration.text} t={t} />
             </div>
           )}
         </section>
       </main>
 
-      {toast && <div className="toast">{toast}</div>}
+      {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
 }
-
-export default App

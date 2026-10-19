@@ -1,35 +1,24 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7001/api'
+// Đặt VITE_API_BASE_URL trong file .env.local, ví dụ: http://localhost:5000/api
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
+export const hasApi = Boolean(API_BASE_URL)
 
-export async function getPois() {
-  const response = await fetch(`${API_BASE_URL}/pois`)
-  if (!response.ok) throw new Error('Không thể tải danh sách địa điểm')
-  return response.json()
+// Mọi request có timeout 8s + hỗ trợ huỷ (AbortController) để tránh treo UI
+async function request(path, { signal, ...options } = {}, errorMessage = 'Lỗi kết nối') {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 8000)
+  signal?.addEventListener('abort', () => ctrl.abort())
+  try {
+    const res = await fetch(`${API_BASE_URL}${path}`, { ...options, signal: ctrl.signal })
+    if (!res.ok) throw new Error(errorMessage)
+    return await res.json()
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
-export async function getPoi(id) {
-  const response = await fetch(`${API_BASE_URL}/pois/${id}`)
-  if (!response.ok) throw new Error('Không thể tải thông tin địa điểm')
-  return response.json()
-}
+const post = (body) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
-export async function getRoute(origin, destination) {
-  const response = await fetch(`${API_BASE_URL}/route`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ origin, destination }),
-  })
-
-  if (!response.ok) throw new Error('Không thể tạo tuyến đường')
-  return response.json()
-}
-
-export async function translate(text, targetLanguage) {
-  const response = await fetch(`${API_BASE_URL}/translate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, targetLanguage }),
-  })
-
-  if (!response.ok) throw new Error('Không thể dịch nội dung')
-  return response.json()
-}
+export const getPois = (opts) => request('/pois', opts, 'Không thể tải danh sách địa điểm')
+export const getPoi = (id, opts) => request(`/pois/${id}`, opts, 'Không thể tải thông tin địa điểm')
+export const getRoute = (origin, destination, opts) => request('/route', { ...post({ origin, destination }), ...opts }, 'Không thể tạo tuyến đường')
+export const translate = (text, targetLanguage, opts) => request('/translate', { ...post({ text, targetLanguage }), ...opts }, 'Không thể dịch nội dung')

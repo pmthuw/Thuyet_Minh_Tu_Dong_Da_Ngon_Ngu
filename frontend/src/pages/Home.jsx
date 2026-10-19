@@ -2,7 +2,7 @@ function Home() {
   return (
     <main className="home">
       <header className="navbar">
-        <h2>VoiceMap</h2>
+        <h2>AURALIS</h2>
 
         <button className="language-btn">
           Tiếng Việt
@@ -17,7 +17,7 @@ function Home() {
         </h1>
 
         <p>
-          VoiceMap cung cấp thuyết minh tự động
+          AURALIS cung cấp thuyết minh tự động
           bằng nhiều ngôn ngữ.
         </p>
 
