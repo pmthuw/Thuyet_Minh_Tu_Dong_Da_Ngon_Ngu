@@ -1,0 +1,58 @@
+﻿name: AURALIS CI
+
+on:
+  push:
+    branches:
+      - bichngoc-auralis
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-build:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  backend-build:
+    name: Build Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Find backend project
+        id: project
+        shell: bash
+        run: |
+          project=$(find backend -name '*.csproj' -print -quit)
+          if [ -z "$project" ]; then
+            echo "Khong tim thay file .csproj trong backend"
+            exit 1
+          fi
+          echo "path=$project" >> "$GITHUB_OUTPUT"
+
+      - name: Restore backend dependencies
+        run: dotnet restore "${{ steps.project.outputs.path }}"
+
+      - name: Build backend
+        run: dotnet build "${{ steps.project.outputs.path }}" --no-restore
