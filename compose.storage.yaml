@@ -1,0 +1,7 @@
+services:
+  sqlserver:
+    volumes:
+      - sql2022_clean:/var/opt/mssql
+
+volumes:
+  sql2022_clean:
