@@ -1,0 +1,134 @@
+{
+  "Users": {
+    "UserID": {
+      "Type": "int",
+      "Nullable": false
+    },
+    "Username": {
+      "Type": "varchar(50)",
+      "Nullable": false
+    },
+    "PasswordHash": {
+      "Type": "varchar(255)",
+      "Nullable": false
+    },
+    "FullName": {
+      "Type": "nvarchar(100)",
+      "Nullable": true
+    },
+    "IsActive": {
+      "Type": "bit",
+      "Nullable": false
+    },
+    "CreatedAt": {
+      "Type": "datetime",
+      "Nullable": false
+    }
+  },
+  "PointsOfInterest": {
+    "POIID": {
+      "Type": "int",
+      "Nullable": false
+    },
+    "Name": {
+      "Type": "nvarchar(200)",
+      "Nullable": false
+    },
+    "Description": {
+      "Type": "nvarchar(max)",
+      "Nullable": true
+    },
+    "Address": {
+      "Type": "nvarchar(500)",
+      "Nullable": true
+    },
+    "Latitude": {
+      "Type": "decimal(9,6)",
+      "Nullable": false
+    },
+    "Longitude": {
+      "Type": "decimal(9,6)",
+      "Nullable": false
+    },
+    "ImageUrl": {
+      "Type": "varchar(500)",
+      "Nullable": true
+    },
+    "Status": {
+      "Type": "nvarchar(20)",
+      "Nullable": false
+    },
+    "IsDeleted": {
+      "Type": "bit",
+      "Nullable": false
+    },
+    "CreatedAt": {
+      "Type": "datetime",
+      "Nullable": false
+    },
+    "UpdatedAt": {
+      "Type": "datetime",
+      "Nullable": true
+    }
+  },
+  "Languages": {
+    "LanguageCode": {
+      "Type": "varchar(10)",
+      "Nullable": false
+    },
+    "LanguageName": {
+      "Type": "nvarchar(50)",
+      "Nullable": false
+    },
+    "IsDefault": {
+      "Type": "bit",
+      "Nullable": false
+    },
+    "IsActive": {
+      "Type": "bit",
+      "Nullable": false
+    }
+  },
+  "AudioGuides": {
+    "AudioGuideID": {
+      "Type": "int",
+      "Nullable": false
+    },
+    "POIID": {
+      "Type": "int",
+      "Nullable": false
+    },
+    "LanguageCode": {
+      "Type": "varchar(10)",
+      "Nullable": false
+    },
+    "Title": {
+      "Type": "nvarchar(200)",
+      "Nullable": true
+    },
+    "TextContent": {
+      "Type": "nvarchar(max)",
+      "Nullable": true
+    },
+    "AudioUrl": {
+      "Type": "varchar(500)",
+      "Nullable": true
+    },
+    "DurationSeconds": {
+      "Type": "int",
+      "Nullable": true
+    },
+    "IsDeleted": {
+      "Type": "bit",
+      "Nullable": false
+    },
+    "CreatedAt": {
+      "Type": "datetime",
+      "Nullable": false
+    },
+    "UpdatedAt": {
+      "Type": "datetime",
+      "Nullable": true
+    }
+  }
+}
