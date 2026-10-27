@@ -67,3 +67,30 @@ add constraint CK_POI_Latitude check (Latitude between -90 and 90),
     constraint CK_POI_Longitude check (Longitude between -180 and 180),
     constraint CK_POI_Status check (Status in ('Active', 'Inactive'));
 go
+
+USE AuralisDB;
+SET XACT_ABORT ON;
+
+BEGIN TRANSACTION;
+
+-- Cấu hình thuyết minh tự xóa khi POI bị xóa
+ALTER TABLE dbo.AudioGuides
+DROP CONSTRAINT [FK_AudioGuides_POI];
+
+ALTER TABLE dbo.AudioGuides
+ADD CONSTRAINT [FK_AudioGuides_POI]
+FOREIGN KEY (POIID)
+REFERENCES dbo.PointsOfInterest(POIID)
+ON DELETE CASCADE;
+
+-- Cấu hình lịch sử lượt nghe tự xóa khi POI bị xóa
+ALTER TABLE dbo.NarrationEvents
+DROP CONSTRAINT [FK__Narration__POIID__619B8048];
+
+ALTER TABLE dbo.NarrationEvents
+ADD CONSTRAINT [FK__Narration__POIID__619B8048]
+FOREIGN KEY (POIID)
+REFERENCES dbo.PointsOfInterest(POIID)
+ON DELETE CASCADE;
+
+COMMIT;
