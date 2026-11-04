@@ -1,3 +1,4 @@
+using Auralis.Api.Admin;
 using Auralis.Api.Models;
 using Microsoft.EntityFrameworkCore;
 namespace Auralis.Api.Data;
@@ -10,6 +11,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        b.Entity<DeviceSession>().ToTable("DeviceSessions", "dbo");
+        b.Entity<DeviceSession>().HasKey(x => x.Id);
+        b.Entity<DeviceSession>().HasIndex(x => x.TokenHash).IsUnique();
+        b.Entity<NarrationEvent>().ToTable("NarrationEvents", "dbo");
+        b.Entity<NarrationEvent>().HasKey(x => x.Id);
         b.Entity<User>(e =>
         {
             e.ToTable("Users", "dbo");
@@ -31,6 +37,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 table.HasCheckConstraint("CK_POI_Status", "[Status] in ('Active', 'Inactive')");
             });
             e.HasKey(x => x.POIID);
+            e.Property(x => x.RowVersion).IsRowVersion();
             e.Property(x => x.POIID).UseIdentityColumn(1, 1);
             e.Property(x => x.Name).HasColumnType("nvarchar(200)").IsRequired();
             e.Property(x => x.Description).HasColumnType("nvarchar(max)");

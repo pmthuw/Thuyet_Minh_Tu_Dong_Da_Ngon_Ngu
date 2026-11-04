@@ -16,6 +16,8 @@ public record PoiDto(
     /// <summary>Khoảng cách (mét) từ vị trí người dùng; chỉ có khi request truyền lat &amp; lng.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? Dist { get; init; }
+    public Dictionary<string, string> Audio { get; init; } = new();
+    public Dictionary<string, string> GuideLanguages { get; init; } = new();
     public string? Description { get; init; }
     public string? Address { get; init; }
     public string? ImageUrl { get; init; }

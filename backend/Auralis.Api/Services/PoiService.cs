@@ -42,11 +42,16 @@ public class PoiService(IPoiRepository repository) : IPoiService
         var guides = p.AudioGuides.Where(g => g.TextContent is not null)
             .OrderByDescending(g => g.Language.IsDefault).ThenBy(g => g.LanguageCode).ToList();
         var translations = guides.ToDictionary(g => g.LanguageCode, g => g.TextContent!, StringComparer.OrdinalIgnoreCase);
-        // Giữ mã gốc vi-VN/en-US và thêm alias vi/en để frontend cũ đọc được.
-        foreach (var guide in guides)
-            translations.TryAdd(guide.LanguageCode.Split('-')[0].ToLowerInvariant(), guide.TextContent!);
+        var guideLanguages = guides.ToDictionary(g => g.LanguageCode, g => g.LanguageCode, StringComparer.OrdinalIgnoreCase);
+        // Preserve legacy aliases and the exact stored language key for playback events.
+        foreach (var guide in guides) {
+            var alias = guide.LanguageCode.Split('-')[0].ToLowerInvariant();
+            if (translations.TryAdd(alias, guide.TextContent!)) guideLanguages.TryAdd(alias, guide.LanguageCode);
+        }
         return new PoiDto(p.POIID, p.Name, null, (double)p.Latitude, (double)p.Longitude, null, translations)
         {
+            GuideLanguages = guideLanguages,
+            Audio = guides.Where(g => !string.IsNullOrEmpty(g.AudioUrl)).ToDictionary(g => g.LanguageCode, g => g.AudioUrl!),
             Dist = dist, Description = p.Description, Address = p.Address, ImageUrl = p.ImageUrl
         };
     }

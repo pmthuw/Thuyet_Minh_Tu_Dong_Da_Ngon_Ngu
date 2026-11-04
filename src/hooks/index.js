@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { DEFAULT_POS } from '../data'
+import { SpeechController } from '../services/speech.js'
+import { resolveNarration } from '../services/speech.js'
+import { findNarrationSource, loadNarration } from '../services/narration.js'
+import { translate } from '../services/api.js'
 
 export function haversine(a, b) {
   const R = 6371000, r = Math.PI / 180
@@ -49,36 +53,57 @@ export function useGeo() {
   return { pos, status, locate }
 }
 
-// Đọc thuyết minh bằng Web Speech API (không cần backend/API key)
-export function useSpeech(text, locale) {
+// Voices may load after the page: observe voiceschanged.
+export function useSpeech(text, locale, contextKey = '', onStarted) {
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window
-  const [state, setState] = useState({ playing: false, progress: 0 })
+    && 'SpeechSynthesisUtterance' in window
+  const [state, setState] = useState({ playing: false, progress: 0, error: '', voiceAvailable: false, voiceName: '' })
   const [rate, setRate] = useState(1)
+  const controller = useRef(null)
+  const startedRef = useRef(onStarted)
+  startedRef.current = onStarted
 
-  const stop = useCallback(() => {
-    if (supported) window.speechSynthesis.cancel()
-    setState({ playing: false, progress: 0 })
+  useLayoutEffect(() => {
+    if (!supported) return
+    const instance = new SpeechController(window.speechSynthesis, window.SpeechSynthesisUtterance, setState, () => startedRef.current?.())
+    controller.current = instance
+    return () => { instance.destroy(); controller.current = null }
   }, [supported])
 
-  useEffect(() => stop, [text, locale, rate, stop]) // đổi nội dung/ngôn ngữ/tốc độ → dừng
+  useLayoutEffect(() => {
+    controller.current?.update(text, locale, rate, contextKey)
+  }, [text, locale, rate, contextKey, supported])
 
-  const toggle = useCallback(() => {
-    if (!supported) return false
-    const s = window.speechSynthesis
-    if (state.playing) { s.pause(); setState((v) => ({ ...v, playing: false })); return true }
-    if (s.paused && s.speaking) { s.resume(); setState((v) => ({ ...v, playing: true })); return true }
-    s.cancel()
-    const u = new SpeechSynthesisUtterance(text)
-    u.lang = locale; u.rate = rate
-    const voice = s.getVoices().find((v) => v.lang.replace('_', '-').startsWith(locale.slice(0, 2)))
-    if (voice) u.voice = voice
-    u.onboundary = (e) => setState({ playing: true, progress: Math.min(1, e.charIndex / text.length) })
-    u.onend = u.onerror = () => setState({ playing: false, progress: 0 })
-    setState({ playing: true, progress: 0 })
-    s.speak(u)
-    return true
-  }, [supported, state.playing, text, locale, rate])
-
-  const cycleRate = () => setRate((r) => (r === 1 ? 1.25 : r === 1.25 ? 0.8 : 1))
+  const stop = useCallback(() => controller.current?.stop(), [])
+  const toggle = useCallback(() => controller.current?.toggle() ?? false, [])
+  const cycleRate = useCallback(() => setRate((r) => r === 1 ? 1.25 : r === 1.25 ? 0.8 : 1), [])
   return { ...state, supported, rate, toggle, cycleRate, stop }
+}
+
+// Only expose translated text for the currently selected POI/source/language.
+export function useNarration(poi, language) {
+  const direct = resolveNarration(poi, language)
+  const source = findNarrationSource(poi)
+  const key = JSON.stringify([poi?.id ?? null, source.text, source.locale, language.locale])
+  const cache = useRef(new Map())
+  const [result, setResult] = useState({ key: '', text: '', status: 'missing' })
+
+  useEffect(() => {
+    if (!poi || direct.text || !source.text) return
+    const controller = new AbortController()
+    setResult({ key, text: '', status: 'loading' })
+    loadNarration(poi, language, translate, { signal: controller.signal, cache: cache.current })
+      .then((narration) => {
+        if (!controller.signal.aborted) setResult({ key, text: narration.text, status: 'ready' })
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setResult({ key, text: '', status: 'unavailable' })
+      })
+    return () => controller.abort()
+  }, [key, direct.text, source.text]) // key includes POI, language and source content
+
+  if (direct.text) return { ...direct, status: 'ready' }
+  if (!poi || !source.text) return { text: '', locale: language.locale, status: 'missing' }
+  if (result.key === key) return { text: result.text, locale: language.locale, status: result.status, languageCode: language.code, sourceLanguageCode: source.languageCode }
+  return { text: '', locale: language.locale, status: 'loading' }
 }

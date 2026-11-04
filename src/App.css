@@ -132,3 +132,7 @@
 .travel-options input { accent-color:var(--teal); }
 .api-alert { padding:9px 11px; background:#fff5e7; border:1px solid #f4d7a5; border-radius:9px; color:#805213; font-size:12px; margin:0; }
 @media(max-width:760px){ .map-switch{left:12px;top:12px;max-width:calc(100% - 80px);} .map-switch button{padding:7px 9px;font-size:11px;} }
+
+.audio-shell{min-width:0}
+.audio-status{margin:6px 0 0;padding:10px 12px;border-radius:10px;background:#fff8e8;color:#784b08;font-size:13px;line-height:1.5}
+.audio button:disabled{opacity:.45;cursor:not-allowed}

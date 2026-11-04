@@ -427,3 +427,45 @@ export const UI = {
     gpsHint: "Position inconnue : Google Maps demandera le point de départ.",
   },
 };
+
+// Narration availability is separate from the selected UI language.
+const narrationLabels = {
+  vi: {
+    noTranslation: 'Địa điểm này chưa có nội dung thuyết minh bằng ngôn ngữ đã chọn.',
+    translating: 'Đang tải bản dịch thuyết minh…',
+    translationUnavailable: 'Chưa lấy được bản dịch cho ngôn ngữ này. Cần bổ sung bản dịch trong database hoặc cấu hình dịch vụ dịch ở backend.',
+    noVoice: 'Trình duyệt chưa có giọng đọc cho ngôn ngữ này. Hãy cài giọng tương ứng hoặc thử trình duyệt khác.',
+    speechError: 'Không phát được thuyết minh. Hãy thử lại.',
+  },
+  en: {
+    noTranslation: 'This place has no narration in the selected language.',
+    translating: 'Loading the translated guide…',
+    translationUnavailable: 'Translation is unavailable. Add it to the database or configure the backend translation service.',
+    noVoice: 'No voice is available for this language. Install a matching voice or try another browser.',
+    speechError: 'The guide could not be played. Please try again.',
+  },
+  zh: {
+    noTranslation: '此地点暂无所选语言的讲解。', translating: '正在加载讲解翻译…',
+    translationUnavailable: '无法获取翻译。请在数据库中添加翻译或配置后端翻译服务。',
+    noVoice: '浏览器没有此语言的语音，请安装相应语音或尝试其他浏览器。', speechError: '无法播放讲解，请重试。',
+  },
+  ko: {
+    noTranslation: '이 장소에는 선택한 언어의 해설이 없습니다.', translating: '번역된 해설을 불러오는 중…',
+    translationUnavailable: '번역을 사용할 수 없습니다. 데이터베이스에 번역을 추가하거나 백엔드 번역 서비스를 설정하세요.',
+    noVoice: '이 언어의 음성이 없습니다. 해당 음성을 설치하거나 다른 브라우저를 사용하세요.', speechError: '해설을 재생할 수 없습니다. 다시 시도하세요.',
+  },
+  ja: {
+    noTranslation: 'このスポットには選択した言語の解説がありません。', translating: '解説の翻訳を読み込み中…',
+    translationUnavailable: '翻訳を取得できません。データベースに翻訳を追加するか、バックエンドの翻訳サービスを設定してください。',
+    noVoice: 'この言語の音声がありません。対応する音声をインストールするか、別のブラウザをお試しください。', speechError: '解説を再生できません。もう一度お試しください。',
+  },
+  fr: {
+    noTranslation: 'Ce lieu ne propose pas de guide dans la langue sélectionnée.', translating: 'Chargement de la traduction du guide…',
+    translationUnavailable: 'Traduction indisponible. Ajoutez-la à la base de données ou configurez le service de traduction du backend.',
+    noVoice: 'Aucune voix disponible pour cette langue. Installez une voix adaptée ou essayez un autre navigateur.', speechError: 'Impossible de lire le guide. Veuillez réessayer.',
+  },
+}
+for (const language of LANGS) {
+  Object.assign(UI[language.code], narrationLabels[language.code])
+  delete UI[language.code].fallback // no silent fallback to another language
+}

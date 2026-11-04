@@ -1,24 +1,28 @@
+import ShareQr from './components/ShareQr.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import GoogleMap from './components/GoogleMap'
 import POICard from './components/POICard'
 import AudioPlayer from './components/AudioPlayer'
 import Icon from './components/Icon'
-import { CATS, LANGS, POIS, UI } from './data'
+import { CATS, LANGS, UI } from './data'
 import {
   fmtDist,
   haversine,
   norm,
   useGeo,
   useLocalStorage,
-  useSpeech,
+  useNarration,
   useToast,
   walkMin,
 } from './hooks'
-import { getPois, getGoogleDirectionsLink } from './services/api'
+import { getPois, getLanguages, getGoogleDirectionsLink } from './services/api'
 import { googleDirectionsUrl } from './services/googleMaps'
+import { trackPlayback, startVisitorPresence } from './services/adminApi.js'
+import { useGuidePlayback } from './hooks/useGuidePlayback.js'
 
 export default function App() {
+  useEffect(() => startVisitorPresence(), [])
   const [langCode, setLangCode] = useLocalStorage('auralis:lang', 'vi')
   const [saved, setSaved] = useLocalStorage('auralis:saved', [])
   const [selectedId, setSelectedId] = useState(1)
@@ -27,7 +31,8 @@ export default function App() {
   const [sortBy, setSortBy] = useState('distance')
   const [menu, setMenu] = useState(false)
   const [travelMode, setTravelMode] = useLocalStorage('auralis:travel', 'walking')
-  const [pois, setPois] = useState(POIS)
+  const [pois, setPois] = useState([])
+  const [activeLanguages, setActiveLanguages] = useState([])
   const [apiStatus, setApiStatus] = useState('loading')
   const [backendRoute, setBackendRoute] = useState(null)
   const [toast, notify] = useToast()
@@ -36,16 +41,11 @@ export default function App() {
   const searchRef = useRef(null)
   const langWrap = useRef(null)
 
-  const lang = LANGS.find((l) => l.code === langCode) || LANGS[0]
-  const t = UI[lang.code] || UI.en
+  const lang = activeLanguages.find((l) => l.code === langCode) || activeLanguages[0] || LANGS[0]
+  const t = UI[lang.code.split('-')[0]] || UI.en
   const catName = (cat) => cat ? CATS[cat]?.[lang.code] || CATS[cat]?.en || cat : ''
 
-  const pick = (poi) => {
-    const translated = poi.tr?.[lang.code]
-    if (translated) return { text: translated, locale: lang.locale }
-    const fallbackCode = Object.keys(poi.tr || {}).find((code) => poi.tr[code] && LANGS.some((l) => l.code === code))
-    return { text: poi.tr?.[fallbackCode] || '', locale: LANGS.find((l) => l.code === fallbackCode)?.locale || lang.locale }
-  }
+
 
   const list = useMemo(() => {
     const q = norm(search.trim())
@@ -77,16 +77,23 @@ export default function App() {
 
   useEffect(() => {
     const controller = new AbortController()
-    getPois({ signal: controller.signal })
-      .then((items) => {
-        if (!Array.isArray(items)) throw new Error('Invalid POI response')
+    const load = () => Promise.all([
+      getPois({ signal: controller.signal }),
+      getLanguages({ signal: controller.signal }),
+    ])
+      .then(([items, languages]) => {
+        if (!Array.isArray(items) || !Array.isArray(languages)) throw new Error('Invalid API response')
+        if (controller.signal.aborted) return
         setPois(items)
+        setActiveLanguages(languages)
         setApiStatus('connected')
       })
       .catch(() => {
-        if (!controller.signal.aborted) setApiStatus('demo')
+        if (!controller.signal.aborted) { setPois([]); setActiveLanguages([]); setApiStatus('error') }
       })
-    return () => controller.abort()
+    load()
+    window.addEventListener('focus', load)
+    return () => { controller.abort(); window.removeEventListener('focus', load) }
   }, [])
 
   const routeSignature = `${selected?.id}/${selected?.lat}/${selected?.lng}/${travelMode}/${langCode}/${status === 'ok' ? `${pos.lat},${pos.lng}` : 'gps-unknown'}`
@@ -117,8 +124,15 @@ export default function App() {
     if (status !== 'ok') notify(t.gpsHint)
   }
 
-  const narration = selected ? pick(selected) : { text: '', locale: lang.locale }
-  const speech = useSpeech(narration.text, narration.locale)
+  const narration = useNarration(selected, lang)
+  const speech = useGuidePlayback(narration.text, narration.locale,
+    selected?.audio?.[narration.languageCode], selected?.id, () => {
+      if (selected) trackPlayback(selected.id, narration.languageCode || lang.code, narration.sourceLanguageCode)
+        .catch(() => notify('Không ghi được lượt nghe. Kiểm tra kết nối backend.'))
+    })
+  const narrationMessage = narration.status === 'loading' ? t.translating
+    : narration.status === 'unavailable' ? t.translationUnavailable
+      : !narration.text ? t.noTranslation : ''
 
   useEffect(() => {
     const onKey = (event) => {
@@ -164,8 +178,9 @@ export default function App() {
       notify(t.noTts)
       return
     }
+    if (narrationMessage) return notify(narrationMessage)
+    if (!speech.voiceAvailable) return notify(t.noVoice)
     speech.toggle()
-    if (selected && !selected.tr?.[lang.code]) notify(t.fallback)
   }
 
   const filters = [
@@ -192,6 +207,8 @@ export default function App() {
         </button>
 
         <div className="top-actions">
+          <ShareQr />
+          
           <button className="btn" onClick={locate}>
             <Icon name="locate" size={16} />
             <span className="hide-sm">{t.locate}</span>
@@ -209,13 +226,14 @@ export default function App() {
             </button>
             {menu && (
               <ul className="menu" role="listbox">
-                {LANGS.map((item) => (
+                {activeLanguages.map((item) => (
                   <li key={item.code}>
                     <button
                       role="option"
                       aria-selected={item.code === langCode}
                       className={item.code === langCode ? 'on' : ''}
                       onClick={() => {
+                        speech.stop()
                         setLangCode(item.code)
                         setMenu(false)
                       }}
@@ -233,8 +251,8 @@ export default function App() {
       <main className="layout">
         <aside className="side">
           <h1>{t.explore}</h1>
-          {apiStatus === 'demo' && (
-            <p className="api-alert" role="status">{t.apiOffline}</p>
+          {apiStatus === 'error' && (
+            <p className="api-alert" role="status">Không tải được dữ liệu từ backend. Kiểm tra kết nối rồi tải lại trang.</p>
           )}
 
           <label className="search">
@@ -267,7 +285,7 @@ export default function App() {
           </div>
 
           <div className="list-head">
-            <span>{t.count(list.length)}</span>
+            <span>{t.count(list.length*2)}</span>
             <label>
               {t.sort}
               <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
@@ -323,7 +341,7 @@ export default function App() {
                   </button>
                 </header>
                 <h2>{selected.name}</h2>
-                <p>{narration.text}</p>
+                <p role="status">{narrationMessage || narration.text}</p>
                 <div className="meta">
                   {Number.isFinite(selected.rating) && <span>★ {selected.rating}</span>}
                   <span>{fmtDist(selected.dist)}</span>
@@ -373,7 +391,8 @@ export default function App() {
               </article>
               <AudioPlayer
                 name={selected.name}
-                langLabel={LANGS.find((item) => item.locale === narration.locale)?.label || lang.label}
+                langLabel={lang.label}
+                statusMessage={narrationMessage}
                 speech={speech}
                 text={narration.text}
                 t={t}

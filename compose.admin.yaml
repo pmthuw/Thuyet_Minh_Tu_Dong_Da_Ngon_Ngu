@@ -1,0 +1,16 @@
+# Run with the existing compose.yaml. Keep the same CNPM folder / project name.
+services:
+  db-init:
+    entrypoint: ["/bin/bash", "/scripts/init-admin-db.sh"]
+  backend:
+    environment:
+      Cors__AllowedOrigins__0: "http://localhost:5173"
+      Cors__AllowedOrigins__1: "http://localhost:5180"
+      Cors__AllowedOrigins__2: "http://localhost:5181"
+      Cors__AllowedOrigins__3: "http://127.0.0.1:5180"
+      Cors__AllowedOrigins__4: "http://127.0.0.1:5181"
+      Tts__GoogleApiKey: ${GOOGLE_TTS_API_KEY:-}
+    volumes:
+      - audio_uploads:/app/wwwroot/uploads
+volumes:
+  audio_uploads:
