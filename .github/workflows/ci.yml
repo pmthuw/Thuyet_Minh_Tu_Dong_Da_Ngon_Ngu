@@ -3,7 +3,11 @@
 on:
   push:
     branches:
+      - main
       - bichngoc-auralis
+      - backend
+      - database
+
   pull_request:
     branches:
       - main
