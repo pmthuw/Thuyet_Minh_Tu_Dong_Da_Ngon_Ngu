@@ -1,0 +1,18 @@
+import auralisShareQr from './auralis-qr.vite.js'
+import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
+
+export default defineConfig({
+  plugins: [auralisShareQr(), react()],
+  server: {
+    host: '127.0.0.1',
+    port: 5180,
+    strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8080',
+        changeOrigin: true,
+      },
+    },
+  },
+})

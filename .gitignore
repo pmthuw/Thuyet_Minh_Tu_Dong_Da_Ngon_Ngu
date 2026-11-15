@@ -1,51 +1,16 @@
-# =========================
-# Environment / Secrets
-# =========================
+.env
+**/bin/
+**/obj/
+
 .env
 .env.*
 !.env.example
+**/node_modules/
+**/bin/
+**/obj/
 
-# =========================
-# Node / React
-# =========================
-node_modules/
-dist/
-build/
-.vite/
-
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# =========================
-# .NET / C#
-# =========================
-bin/
-obj/
-.vs/
-*.user
-*.suo
-
-# =========================
-# IDE
-# =========================
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
-
-# =========================
-# OS
-# =========================
-.DS_Store
-Thumbs.db
-
-# =========================
-# Logs
-# =========================
-*.log
-
-# =========================
-# Test / Coverage
-# =========================
-coverage/
-TestResults/
+**/dist/
+/@oxc-project/
+/@oxlint/
+/@rolldown/
+/@types/
