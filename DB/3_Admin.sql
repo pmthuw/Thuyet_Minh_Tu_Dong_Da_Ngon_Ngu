@@ -2,7 +2,7 @@ USE AuralisDB;
 GO
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
-IF NOT EXISTS(SELECT 1 FROM dbo.Languages WHERE LanguageCode='vi')
+IF NOT EXISTS(SELECT 1 FROM dbo.Languages WHERE LanguageCode LIKE 'vi%')
  INSERT dbo.Languages(LanguageCode,LanguageName,IsDefault,IsActive) VALUES('vi',N'Tiếng Việt',0,1);
 IF NOT EXISTS(SELECT 1 FROM dbo.Languages WHERE IsDefault=1)
  UPDATE dbo.Languages SET IsDefault=1,IsActive=1 WHERE LanguageCode='vi';
@@ -27,9 +27,12 @@ IF OBJECT_ID('dbo.NarrationEvents','U') IS NULL
 BEGIN
  CREATE TABLE dbo.NarrationEvents(
   Id uniqueidentifier NOT NULL PRIMARY KEY,
-  SessionId uniqueidentifier NOT NULL REFERENCES dbo.DeviceSessions(Id),
-  POIID int NOT NULL REFERENCES dbo.PointsOfInterest(POIID),
-  LanguageCode varchar(10) NOT NULL REFERENCES dbo.Languages(LanguageCode),
+  SessionId uniqueidentifier NOT NULL
+   CONSTRAINT FK_NarrationEvents_Session REFERENCES dbo.DeviceSessions(Id),
+  POIID int NOT NULL
+   CONSTRAINT FK_NarrationEvents_POI REFERENCES dbo.PointsOfInterest(POIID) ON DELETE CASCADE,
+  LanguageCode varchar(10) NOT NULL
+   CONSTRAINT FK_NarrationEvents_Language REFERENCES dbo.Languages(LanguageCode),
   StartedAt datetime2 NOT NULL
  );
  CREATE INDEX IX_Narration_Date ON dbo.NarrationEvents(StartedAt,POIID);
