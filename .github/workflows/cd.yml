@@ -1,0 +1,36 @@
+name: AURALIS CD
+
+on:
+  push:
+    branches:
+      - feature/cd
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-build:
+    name: Test Docker Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend/Auralis.Api
+          file: ./backend/Auralis.Api/Dockerfile
+          push: false
+          tags: auralis-backend:test
+
+      - name: Verify build
+        run: echo "AURALIS Docker build successful!"
