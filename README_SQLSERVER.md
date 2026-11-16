@@ -2,14 +2,14 @@
 
 ## Những gì đã đổi
 
-.NET 10, EF Core SqlServer 10.0.*, kiến trúc Controller → Service → Repository → AppDbContext → SQL Server.
+.NET 10, EF Core SqlServer 10.0.\*, kiến trúc Controller → Service → Repository → AppDbContext → SQL Server.
 
-| Bảng SQL Server | Entity | Khóa |
-|---|---|---|
-| dbo.Users | User | UserID identity(1,1); Username unique |
-| dbo.PointsOfInterest | PointOfInterest | POIID identity(1,1) |
-| dbo.Languages | Language | LanguageCode varchar(10) |
-| dbo.AudioGuides | AudioGuide | AudioGuideID identity(1,1); unique (POIID, LanguageCode) |
+| Bảng SQL Server      | Entity          | Khóa                                                     |
+| -------------------- | --------------- | -------------------------------------------------------- |
+| dbo.Users            | User            | UserID identity(1,1); Username unique                    |
+| dbo.PointsOfInterest | PointOfInterest | POIID identity(1,1)                                      |
+| dbo.Languages        | Language        | LanguageCode varchar(10)                                 |
+| dbo.AudioGuides      | AudioGuide      | AudioGuideID identity(1,1); unique (POIID, LanguageCode) |
 
 Entity/model ánh xạ đủ 31 cột trong 1_Create.sql. Không giữ Category, Rating hay Role trong entity vì script không có chúng. User trước đây ở file không có đuôi .cs đã được thay bằng Models/User.cs để compiler nhận diện.
 
@@ -38,12 +38,12 @@ appsettings.json mặc định Windows Authentication, localhost, AuralisDB, Enc
 
 Chọn Server theo đúng tên trong cửa sổ Connect của SSMS, ví dụ:
 
-| Instance | Giá trị trong JSON |
-|---|---|
-| SQL Server mặc định | Server=localhost |
-| SQL Express | Server=.\\SQLEXPRESS |
-| LocalDB nếu đã cài | Server=(localdb)\\MSSQLLocalDB |
-| SQL Server qua TCP | Server=localhost,1433 |
+| Instance            | Giá trị trong JSON             |
+| ------------------- | ------------------------------ |
+| SQL Server mặc định | Server=localhost               |
+| SQL Express         | Server=.\\SQLEXPRESS           |
+| LocalDB nếu đã cài  | Server=(localdb)\\MSSQLLocalDB |
+| SQL Server qua TCP  | Server=localhost,1433          |
 
 Cấu hình mẫu Development:
 
@@ -55,7 +55,7 @@ Cấu hình mẫu Development:
 }
 ```
 
-Đổi instance đúng với máy. `appsettings.Development.json` ghi đè `appsettings.json` khi chạy Development. Có thể dùng biến môi trường ConnectionStrings__Default để ghi đè cả hai. Windows Authentication dùng tài khoản Windows đang chạy backend; tài khoản đó phải có quyền với AuralisDB.
+Đổi instance đúng với máy. `appsettings.Development.json` ghi đè `appsettings.json` khi chạy Development. Có thể dùng biến môi trường ConnectionStrings\_\_Default để ghi đè cả hai. Windows Authentication dùng tài khoản Windows đang chạy backend; tài khoản đó phải có quyền với AuralisDB.
 
 Nếu dùng SQL Authentication, đặt chuỗi qua user-secrets thay vì lưu mật khẩu trong JSON/git:
 
@@ -121,6 +121,57 @@ Trong môi trường sửa mã đã chạy đối chiếu tĩnh tên/kiểu/null
 
 ## Mã nguồn cần xem
 
-Models/*.cs, Data/AppDbContext.cs, Program.cs, appsettings*.json, Repositories/*.cs và Services/PoiService.cs. Toàn bộ code có trong backend/Auralis.Api.
+Models/_.cs, Data/AppDbContext.cs, Program.cs, appsettings_.json, Repositories/\*.cs và Services/PoiService.cs. Toàn bộ code có trong backend/Auralis.Api.
 
 Tham khảo chính thức: https://learn.microsoft.com/ef/core/providers/sql-server/ và https://learn.microsoft.com/ef/core/modeling/generated-properties
+
+## Chạy demo AURALIS bằng Docker
+
+Mở Docker Desktop, rồi mở PowerShell tại thư mục có `compose.yaml`,
+`compose.admin.yaml` và `package.json`.
+
+Nếu chưa có `.env`, sao chép từ `.env.example` và điền `SQL_PASSWORD`.
+Nếu dùng lại database Docker đã tạo, giữ đúng mật khẩu SQL cũ.
+`SEED_MOCK=true` nạp dữ liệu mẫu khi tạo database mới lần đầu.
+
+Trên máy demo, đặt `API_PORT=8081` trong `.env` và đặt `target` của proxy
+`/api` trong `vite.config.js` thành `http://127.0.0.1:8081`.
+
+```powershell
+docker compose -f compose.yaml -f compose.admin.yaml up -d --build
+Invoke-RestMethod 'http://127.0.0.1:8081/api/health/db'
+```
+
+Khi API trả `status: ok` và `database: AuralisDB`, chạy giao diện tại
+cùng thư mục. Chạy `npm ci` ở lần cài đầu tiên.
+
+```powershell
+npm ci
+npm run dev -- --open /admin
+```
+
+| Giao diện          | Đường dẫn                   |
+| ------------------ | --------------------------- |
+| Trang khách        | http://127.0.0.1:5180/      |
+| Dashboard quản trị | http://127.0.0.1:5180/admin |
+
+Nếu Vite đã chạy ở cổng `5180`, mở trực tiếp hai đường dẫn trên.
+
+### Quét QR từ điện thoại khác Wi-Fi
+
+Sau khi đã cài ngrok và xác thực tài khoản, giữ Vite chạy và mở terminal khác:
+
+```powershell
+ngrok http http://127.0.0.1:5180 --host-header=rewrite
+```
+
+Copy URL HTTPS ở dòng `Forwarding` vào ô **Địa chỉ mở ứng dụng** trong
+popup **Mã QR**. Nếu ngrok hiện trang trung gian, bấm **Visit Site**.
+Giữ Docker, Vite và ngrok chạy trong buổi demo.
+
+## CI/CD
+
+- **AURALIS CI** build backend và giao diện trong thư mục `frontend/`.
+  Bản giao diện có dashboard nằm ở thư mục gốc.
+- **AURALIS CD** kiểm tra build Docker image của backend trên GitHub Actions.
+  Workflow hiện chưa đẩy image lên registry hoặc triển khai lên server.
