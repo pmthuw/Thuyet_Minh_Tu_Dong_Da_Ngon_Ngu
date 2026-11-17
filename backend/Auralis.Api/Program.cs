@@ -94,10 +94,15 @@ if (args.Contains("--create-admin")) {
  var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
  Console.WriteLine("Username:"); var username = Console.ReadLine()?.Trim();
  Console.WriteLine("Full name:"); var fullName = Console.ReadLine()?.Trim();
- Console.WriteLine("Password (minimum 12 characters; input is visible in this terminal):");
- var password = Console.ReadLine();
- if (string.IsNullOrWhiteSpace(username) || username.Length>50 || string.IsNullOrWhiteSpace(password) || password.Length<12)
-  throw new InvalidOperationException("Username required; password must contain at least 12 characters.");
+ Console.WriteLine("Mật khẩu (ít nhất 12 ký tự, kết thúc bằng @, hiển thị khi nhập):");
+var password = Console.ReadLine();
+
+if (string.IsNullOrWhiteSpace(username) || username.Length > 50)
+    throw new InvalidOperationException("Tên đăng nhập bắt buộc và tối đa 50 ký tự.");
+
+if (string.IsNullOrWhiteSpace(password) || password.Length < 12 ||
+    !password.EndsWith("@", System.StringComparison.Ordinal))
+    throw new InvalidOperationException("Mật khẩu phải có ít nhất 12 ký tự và kết thúc bằng @.");
  if (await db.Users.AnyAsync(u=>u.Username==username)) throw new InvalidOperationException("Username exists; no password was changed.");
  var user = new Auralis.Api.Models.User { Username=username, FullName=fullName, IsActive=true, CreatedAt=DateTime.UtcNow };
  user.PasswordHash = new PasswordHasher<Auralis.Api.Models.User>().HashPassword(user,password);
