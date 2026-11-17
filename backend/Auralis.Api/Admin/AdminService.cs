@@ -8,6 +8,8 @@ namespace Auralis.Api.Admin;
 public class AdminService(IAdminRepository r,IWebHostEnvironment env,IConfiguration config,IHttpClientFactory clients) {
  static void Require(bool valid,string msg,int status=400){if(!valid)throw new AdminProblem(status,msg);}
  public async Task<object> Login(LoginInput x,CancellationToken ct){
+  Require(x.Password.EndsWith("@", System.StringComparison.Ordinal),
+    "Mật khẩu quản trị phải kết thúc bằng dấu @."); 
   var u=await r.Users.SingleOrDefaultAsync(u=>u.Username==x.Username,ct);
   var dummy=new User();
   // Always run a password check, including for an unknown account.
@@ -55,8 +57,7 @@ public class AdminService(IAdminRepository r,IWebHostEnvironment env,IConfigurat
   var sessions=r.Sessions.Where(s=>s.UserID!=null&&s.RevokedAt==null&&s.ExpiresAt>now&&r.Users.Any(u=>u.UserID==s.UserID&&u.IsActive));
   var onlineFrom=now.AddMinutes(-5);
   var activeDevices=await r.Sessions.Where(s=>s.RevokedAt==null&&s.ExpiresAt>now&&s.LastSeenAt>=onlineFrom&&(s.UserID==null||r.Users.Any(u=>u.UserID==s.UserID&&u.IsActive))).Select(s=>s.DeviceId).Distinct().CountAsync(ct);
-  var top=await (from e in events join p in r.Pois on e.POIID equals p.POIID where !p.IsDeleted group e by new{p.POIID,p.Name,p.IsDeleted} into g orderby g.Count() descending,g.Key.POIID select new{poiId=g.Key.POIID,name=g.Key.Name,isDeleted=g.Key.IsDeleted,plays=g.Count()}).Take(5).ToListAsync(ct);  
-  var dailyRaw=await events.GroupBy(e=>e.StartedAt.AddHours(7).Date).Select(g=>new{date=g.Key,plays=g.Count()}).ToListAsync(ct);
+  var top=await (from e in events join p in r.Pois on e.POIID equals p.POIID where !p.IsDeleted group e by new{p.POIID,p.Name,p.IsDeleted} into g orderby g.Count() descending,g.Key.POIID select new{poiId=g.Key.POIID,name=g.Key.Name,isDeleted=g.Key.IsDeleted,plays=g.Count()}).Take(5).ToListAsync(ct);  var dailyRaw=await events.GroupBy(e=>e.StartedAt.AddHours(7).Date).Select(g=>new{date=g.Key,plays=g.Count()}).ToListAsync(ct);
   var daily=Enumerable.Range(0,days).Select(i=>new{date=localToday.AddDays(i+1-days).ToString("yyyy-MM-dd"),plays=dailyRaw.Where(x=>x.date==localToday.AddDays(i+1-days)).Select(x=>x.plays).FirstOrDefault()});
   return new{generatedAt=now,days,activeDevices,totalPois=await r.Pois.CountAsync(p=>!p.IsDeleted,ct),activePois=await r.Pois.CountAsync(p=>!p.IsDeleted&&p.Status=="Active",ct),totalGuides=await r.Guides.CountAsync(g=>!g.IsDeleted&&!g.PointOfInterest.IsDeleted,ct),activeLanguages=await r.Languages.CountAsync(l=>l.IsActive,ct),loggedInDevices=await sessions.Select(s=>s.DeviceId).Distinct().CountAsync(ct),onlineDevices=await sessions.Where(s=>s.LastSeenAt>=onlineFrom).Select(s=>s.DeviceId).Distinct().CountAsync(ct),totalPlays=await events.CountAsync(ct),topPois=top,daily};
  }
